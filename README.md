@@ -1,6 +1,6 @@
 # `sqlite-simple-interpolate`
 
-Write natural SQL statements in Haskell using a QuasiQuotes!
+Write natural SQL statements in Haskell using QuasiQuoters!
 
 ```haskell
 {-# LANGUAGE QuasiQuotes #-}
