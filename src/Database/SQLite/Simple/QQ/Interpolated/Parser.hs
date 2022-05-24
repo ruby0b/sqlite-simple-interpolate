@@ -6,7 +6,7 @@
 --
 -- This module was largely copied from
 -- https://github.com/tmhedberg/here/blob/8a616b358bcc16bd215a78a8f6192ad9df8224b6/src/Data/String/Here/Interpolated.hs
-module Database.PostgreSQL.Simple.SqlQQ.Interpolated.Parser where
+module Database.SQLite.Simple.QQ.Interpolated.Parser where
 
 import Data.Char (isDigit, isLetter)
 import Data.Functor (($>))

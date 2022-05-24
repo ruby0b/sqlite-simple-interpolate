@@ -1,47 +1,35 @@
-# `postgresql-simple-interpolate`
+# `sqlite-simple-interpolate`
 
 Write natural SQL statements in Haskell using a QuasiQuotes!
 
 ```haskell
 {-# LANGUAGE QuasiQuotes #-}
+module Main where
 
 import Data.Char (toLower)
-import qualified Database.PostgreSQL.Simple as Pg
-import Database.PostgreSQL.Simple.SqlQQ.Interpolated (isql)
+import qualified Database.SQLite.Simple as SQL
+import Database.SQLite.Simple.QQ.Interpolated
 import Control.Exception (bracket)
 
+(&) = flip ($)
+infixl 1 &
+
 main :: IO ()
-main = do
-  bracket (Pg.connectPostgreSQL "host=localhost") Pg.close $ \conn -> do
-    let limit = 10
-    ages <- uncurry (query conn) [isql|SELECT age FROM table WHERE name = ${map toLower "CLIVE"} LIMIT ${limit}|]
-    print (ages :: [Pg.Only Int])
-|]
+main = bracket (SQL.open ":memory:") SQL.close $ \conn -> do
+  conn & [iexecute|CREATE TABLE people (name TEXT, age INTEGER)|]
+  conn & [iexecute|INSERT INTO people VALUES ("clive", 40)|]
+  -- you can always use 'isql' directly but you'll have to use uncurry:
+  (uncurry $ SQL.execute conn) [isql|INSERT INTO people VALUES ("clive", 32)|]
+
+  ageSum <- conn & [ifold|SELECT age FROM people|] 0 (\acc (SQL.Only x) -> pure (acc + x))
+  print ageSum
+
+  let limit = 1
+  ages <- conn & [iquery|SELECT age FROM people WHERE name = ${map toLower "CLIVE"} LIMIT ${limit}|]
+  print (ages :: [SQL.Only Int])
 ```
-
-## Hacking
-
-With Nix you can quickly play around with this using a PostgreSQL database:
-
-```
-nix-shell -p '(import ./. {}).haskellPackages.ghcWithPackages (p: [p.gargoyle-postgresql-connect p.postgresql-simple-interpolate])' --run ghci
-```
-
-Then run
-
-```haskell
-:set -XQuasiQuotes
-import Gargoyle.PostgreSQL.Connect (withDb)
-import Data.Pool (withResource)
-import Database.PostgreSQL.Simple (Only (..), query)
-import Database.PostgreSQL.Simple.SqlQQ.Interpolated (isql)
-[isql|SELECT ${1 + 1}|]
--- ("SELECT ?",[Plain "2"])
-withDb "db" $ \pool -> withResource pool $ \c -> (uncurry (query c) [isql|SELECT ${1 + 1}, ${reverse "HELLO"}::text|] :: IO [(Int, String)])
--- [(2,"OLLEH")]
-```
-
 
 ## Acknowledgements
+This library is a fork of [`postgresql-simple-interpolate`](https://github.com/3noch/postgresql-simple-interpolate), adapted for use with `sqlite-simple`.
 
-This library is basically just a copy of the [`here` package](https://github.com/tmhedberg/here) by Taylor M. Hedberg with slight modifications!
+The original itself is basically just a copy of the [`here` package](https://github.com/tmhedberg/here) by Taylor M. Hedberg with slight modifications!

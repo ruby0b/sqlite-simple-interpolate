@@ -1,22 +1,22 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 -- | Interpolated SQL queries
-module Database.PostgreSQL.Simple.SqlQQ.Interpolated
+module Database.SQLite.Simple.QQ.Interpolated
   ( isql
   , quoteInterpolatedSql
   , iquery
   , iexecute
-  , iexecute_
+  , ifold
   ) where
 
 import Language.Haskell.TH (Exp, Q, appE, listE, sigE, tupE, varE)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
-import Database.PostgreSQL.Simple.ToField (Action, toField)
-import Database.PostgreSQL.Simple.SqlQQ (sql)
+import Database.SQLite.Simple.ToField (toField)
+import Database.SQLite.Simple.QQ (sql)
 import Text.Parsec (ParseError)
-import Database.PostgreSQL.Simple
+import Database.SQLite.Simple
 
-import Database.PostgreSQL.Simple.SqlQQ.Interpolated.Parser (StringPart (..), parseInterpolated)
+import Database.SQLite.Simple.QQ.Interpolated.Parser (StringPart (..), parseInterpolated)
 
 -- | Quote a SQL statement with embedded antiquoted expressions.
 --
@@ -27,7 +27,7 @@ import Database.PostgreSQL.Simple.SqlQQ.Interpolated.Parser (StringPart (..), pa
 --
 -- produces
 --
--- @("SELECT field FROM table WHERE name = ? LIMIT ?", [Escape "elliot", Plain "10"])@
+-- @("SELECT field FROM table WHERE name = ? LIMIT ?", [toField ((map toLower) "ELLIOT"), toField 10])@
 --
 -- How the parser works:
 --
@@ -38,10 +38,7 @@ import Database.PostgreSQL.Simple.SqlQQ.Interpolated.Parser (StringPart (..), pa
 -- inclusion of the literal substring @${@ within your quoted text by writing
 -- it as @\\${@. The literal sequence @\\${@ may be written as @\\\\${@.
 --
--- Note: This quasiquoter is a wrapper around 'Database.PostgreSQL.Simple.SqlQQ.sql'
--- which also "minifies" the query at compile time by stripping whitespace and
--- comments. However, there are a few "gotchas" to be aware of so please refer
--- to the documentation of that function for a full specification.
+-- Note: This quasiquoter is a wrapper around 'Database.SQLite.Simple.QQ.sql'.
 --
 -- This quasiquoter only works in expression contexts and will throw an error
 -- at compile time if used in any other context.
@@ -66,7 +63,7 @@ applySql parts =
   let
     (s', exps) = combineParts parts
   in
-  tupE [quoteExp sql s', sigE (listE $ map (appE (varE 'toField)) exps) [t| [Action] |]]
+  tupE [quoteExp sql s', sigE (listE $ map (appE (varE 'toField)) exps) [t| [SQLData] |]]
 
 -- | The internal parser used by 'isql'.
 quoteInterpolatedSql :: String -> Q Exp
@@ -80,14 +77,17 @@ handleError expStr parseError = error $ mconcat
   , show parseError
   ]
 
--- | Invokes 'query' with arguments provided by 'isql'
+-- | Invokes 'query' with arguments provided by 'isql'.
+-- The result is of type '(Connection -> IO [r])'.
 iquery :: QuasiQuoter
-iquery = isql { quoteExp = appE [| uncurry query |] . quoteInterpolatedSql }
+iquery = isql { quoteExp = appE [| \(q, qs) c -> query c q qs |] . quoteInterpolatedSql }
 
 -- | Invokes 'execute' with arguments provided by 'isql'
+-- The result is of type '(Connection -> IO ())'.
 iexecute :: QuasiQuoter
-iexecute = isql { quoteExp = appE [| uncurry execute |] . quoteInterpolatedSql }
+iexecute = isql { quoteExp = appE [| \(q, qs) c -> execute c q qs |] . quoteInterpolatedSql }
 
--- | Invokes 'execute_' with arguments provided by 'isql'
-iexecute_ :: QuasiQuoter
-iexecute_ = isql { quoteExp = appE [| uncurry execute_ |] . quoteInterpolatedSql }
+-- | Invokes 'fold' with arguments provided by 'isql'.
+-- The result is of type 'a -> (a -> row -> IO a) -> Connection -> IO a'.
+ifold :: QuasiQuoter
+ifold = isql { quoteExp = appE [| \(q, qs) acc f c -> fold c q qs acc f |] . quoteInterpolatedSql }
