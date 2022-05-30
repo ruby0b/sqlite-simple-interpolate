@@ -9,6 +9,7 @@ description:
 
 license:            BSD-3-Clause
 license-file:       LICENSE
+author:             ruby0b
 maintainer:         ruby0b
 copyright:          ©2022 ruby0b ©2019 Elliot Cameron
 homepage:           https://github.com/ruby0b/sqlite-simple-interpolate
