@@ -9,12 +9,14 @@ module Database.SQLite.Simple.QQ.Interpolated
   , ifold
   ) where
 
-import Language.Haskell.TH (Exp, Q, appE, listE, sigE, tupE, varE)
+import Language.Haskell.TH (Exp, Q, appE, listE, sigE, tupE, varE, litE)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
+import Language.Haskell.TH.Syntax (Lit(..), lookupValueName)
 import Database.SQLite.Simple.ToField (toField)
-import Database.SQLite.Simple.QQ (sql)
 import Text.Parsec (ParseError)
 import Database.SQLite.Simple
+import Data.Foldable (foldrM)
+import Data.String (fromString)
 
 import Database.SQLite.Simple.QQ.Interpolated.Parser (StringPart (..), parseInterpolated)
 
@@ -50,20 +52,29 @@ isql = QuasiQuoter
   , quoteDec = error "isql quasiquoter does not support usage in declarations"
   }
 
-combineParts :: [StringPart] -> (String, [Q Exp])
-combineParts = foldr step ("", [])
+combineParts :: [StringPart] -> Q ([Q Exp], [Q Exp])
+combineParts = foldrM step ([], [])
   where
     step subExpr (s, exprs) = case subExpr of
-      Lit str -> (str <> s, exprs)
-      Esc c -> (c : s, exprs)
-      Anti e -> ('?' : s, e : exprs)
+      AntiInject e -> injectExpr e (s, exprs)
+      Lit str -> pure (litE (StringL str) : s, exprs)
+      Esc c -> pure (litE (StringL [c]) : s, exprs)
+      AntiParam e -> pure (litE (StringL "?") : s, e : exprs)
+
+injectExpr :: String -> ([Q Exp], [Q Exp]) -> Q ([Q Exp], [Q Exp])
+injectExpr name (s, exprs) = do
+  valueName <- lookupValueName name
+  case valueName of
+    Nothing ->
+      fail $ "Value `" ++ name ++ "` is not in scope"
+    Just found -> do
+      pure (varE found : s, exprs)
 
 applySql :: [StringPart] -> Q Exp
-applySql parts =
-  let
-    (s', exps) = combineParts parts
-  in
-  tupE [quoteExp sql s', sigE (listE $ map (appE (varE 'toField)) exps) [t| [SQLData] |]]
+applySql parts = do
+  (queryParts, exps) <- combineParts parts
+  let queryStr = appE [| fromString :: String -> Query |] $ appE [| concat |] $ listE queryParts
+  tupE [queryStr, sigE (listE $ map (appE (varE 'toField)) exps) [t| [SQLData] |]]
 
 -- | The internal parser used by 'isql'.
 quoteInterpolatedSql :: String -> Q Exp
