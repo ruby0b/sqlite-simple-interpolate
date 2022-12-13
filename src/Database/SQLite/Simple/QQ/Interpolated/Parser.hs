@@ -21,7 +21,7 @@ import Text.Parsec ( ParseError, anyChar, between, char, eof, incSourceColumn
                    )
 import Text.Parsec.String (Parser)
 
-data StringPart = Lit String | Esc Char | Anti (Q Exp)
+data StringPart = Lit String | Esc Char | AntiInject String | AntiParam (Q Exp)
 
 data HsChompState = HsChompState { quoteState :: QuoteState
                                  , braceCt :: Int
@@ -40,19 +40,28 @@ pInterp :: Parser [StringPart]
 pInterp = manyTill pStringPart eof
 
 pStringPart :: Parser StringPart
-pStringPart = pAnti <|> pEsc <|> pLit
+pStringPart = pAntiInject <|> pAntiParam <|> pEsc <|> pLit
 
-pAnti :: Parser StringPart
-pAnti = Anti <$> between (try pAntiOpen) pAntiClose pAntiExpr
+pAntiInject :: Parser StringPart
+pAntiInject = AntiInject <$> between (try pAntiOpenInject) pAntiClose pAntiName
 
-pAntiOpen :: Parser String
-pAntiOpen = string "${"
+pAntiOpenInject :: Parser String
+pAntiOpenInject = string "!{"
 
-pAntiClose :: Parser String
-pAntiClose = string "}"
+pAntiName :: Parser String
+pAntiName = manyTill anyChar (lookAhead pAntiClose)
+
+pAntiParam :: Parser StringPart
+pAntiParam = AntiParam <$> between (try pAntiOpenParam) pAntiClose pAntiExpr
+
+pAntiOpenParam :: Parser String
+pAntiOpenParam = string "${"
 
 pAntiExpr :: Parser (Q Exp)
 pAntiExpr = pUntilUnbalancedCloseBrace >>= either fail (pure . pure) . parseExp
+
+pAntiClose :: Parser String
+pAntiClose = string "}"
 
 pUntilUnbalancedCloseBrace :: Parser String
 pUntilUnbalancedCloseBrace = evalStateT go $ HsChompState None 0 "" False
@@ -98,6 +107,6 @@ pEsc = Esc <$> (char '\\' *> anyChar)
 
 pLit :: Parser StringPart
 pLit = fmap Lit $
-  try (litCharTil $ try $ lookAhead pAntiOpen <|> lookAhead (string "\\"))
+  try (litCharTil $ try $ lookAhead pAntiOpenInject <|> lookAhead pAntiOpenParam <|> lookAhead (string "\\"))
     <|> litCharTil eof
   where litCharTil = manyTill $ noneOf ['\\']
