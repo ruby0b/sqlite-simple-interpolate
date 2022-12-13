@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               sqlite-simple-interpolate
-version:            0.1
+version:            0.1.1
 synopsis:           Interpolated SQLite queries via quasiquotation
 description:
   This package provides Quasiquoters for writing SQLite queries with inline interpolation of values.
