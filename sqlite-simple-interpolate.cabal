@@ -24,7 +24,7 @@ source-repository head
 
 library
   hs-source-dirs:     src
-  exposed-modules:    Database.SQLite.Simple.QQ.Interpolated
+  exposed-modules:    Database.SQLite.Simple.Interpolate
   build-depends:
     , base                  >=4.14 && <5
     , custom-interpolation  ^>=0.1

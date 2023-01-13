@@ -6,7 +6,7 @@ import Control.Exception (bracket)
 import Data.Char (toLower)
 import Data.Function ((&))
 import qualified Database.SQLite.Simple as SQL
-import Database.SQLite.Simple.QQ.Interpolated
+import Database.SQLite.Simple.Interpolate
 
 data Person = Person {name :: String, age :: Integer}
 

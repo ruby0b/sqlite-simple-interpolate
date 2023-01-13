@@ -1,5 +1,5 @@
 -- | Interpolated SQLite queries
-module Database.SQLite.Simple.QQ.Interpolated (
+module Database.SQLite.Simple.Interpolate (
   isql,
   iquery,
   iexecute,
